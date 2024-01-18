@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from .models import Categoria, Flashcard, Desafio, FlashcardDesafio
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404
 from django.contrib.messages import constants
 from django.contrib import messages
 
@@ -107,5 +107,39 @@ def iniciar_desafio(request):
         
         desafio.save()
 
-        return HttpResponse("Teste")
-        # return redirect(f'/flashcard/desafio/{desafio.id}')
+        return redirect(f'/flashcard/listar_desafio/')
+    
+def listar_desafio(request):
+    desafios = Desafio.objects.filter(user=request.user)
+    # Desenvolver os status (fazer)
+    # Desenvolver os filtros (fazer)
+    return render(request, 'listar_desafio.html', {'desafios': desafios})
+    
+def desafio(request, id):    
+    desafio = Desafio.objects.get(id=id)
+    
+    if not desafio.user == request.user:
+        raise Http404 # página de erro
+    
+    if request.method == "GET":
+        acertos = desafio.flashcards.filter(respondido=True).filter(acertou=True).count()
+        erros = desafio.flashcards.filter(respondido=True).filter(acertou=False).count()
+        faltantes = desafio.flashcards.filter(respondido=False).count()
+        return render(request, 'desafio.html', {'desafio': desafio, 'acertos': acertos,
+                                                 'erros': erros, 'faltantes': faltantes})
+    
+    return HttpResponse(id)
+
+def responder_flashcard(request, id):
+    flashcard_desafio = FlashcardDesafio.objects.get(id=id)
+    acertou = request.GET.get('acertou')
+    desafio_id = request.GET.get('desafio_id')
+    # Verificação de user
+    if not flashcard_desafio.flashcard.user == request.user:
+        raise Http404() # Página não encontrada
+
+    flashcard_desafio.respondido = True
+    flashcard_desafio.acertou = True if acertou == '1' else False
+    flashcard_desafio.save()
+
+    return redirect(f'/flashcard/desafio/{desafio_id}/')
